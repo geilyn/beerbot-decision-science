@@ -6,7 +6,7 @@ app = FastAPI()
 
 STUDENT_EMAIL = "geilyn@taltech.ee"
 ALGO_NAME = "BullwhipBreaker"
-VERSION = "v1.0.1"  # tuned to reduce inventory cost
+VERSION = "v1.0.2"  # tuned to reduce inventory cost
 
 ROLES = ["retailer", "wholesaler", "distributor", "factory"]
 
