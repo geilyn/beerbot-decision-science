@@ -6,39 +6,39 @@ app = FastAPI()
 
 STUDENT_EMAIL = "geilyn@taltech.ee"
 ALGO_NAME = "BullwhipBreaker"
-VERSION = "v1.0.2"  # tuned to reduce inventory cost
+VERSION = "v1.0.3"  # tuned to reduce inventory cost
 
 ROLES = ["retailer", "wholesaler", "distributor", "factory"]
 
 # Rollipõhised parameetrid 
 PARAMS = {
     "retailer": {
-        "cover_weeks": 2.8,   # ↑ agressiivsem
-        "safety": 18,         # ↑ backlogi vältimine
-        "beta": 0.45,         # ↑ kiirem nõudluse õppimine
-        "alpha": 0.65,        # ↑ vähem silumist
-        "cap": 260
+        "cover_weeks": 1.8,
+        "safety": 4,
+        "beta": 0.15,
+        "alpha": 0.85,
+        "cap": 35
     },
     "wholesaler": {
-        "cover_weeks": 3.2,
-        "safety": 20,
-        "beta": 0.45,
-        "alpha": 0.60,
-        "cap": 280
+        "cover_weeks": 2.0,
+        "safety": 5,
+        "beta": 0.12,
+        "alpha": 0.85,
+        "cap": 40
     },
     "distributor": {
-        "cover_weeks": 3.5,
-        "safety": 22,
-        "beta": 0.45,
-        "alpha": 0.60,
-        "cap": 300
+        "cover_weeks": 2.2,
+        "safety": 6,
+        "beta": 0.10,
+        "alpha": 0.88,
+        "cap": 45
     },
     "factory": {
-        "cover_weeks": 4.0,
-        "safety": 26,
-        "beta": 0.40,
-        "alpha": 0.55,
-        "cap": 340
+        "cover_weeks": 2.5,
+        "safety": 6,
+        "beta": 0.08,
+        "alpha": 0.90,
+        "cap": 40
     }
 }
 
