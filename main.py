@@ -1,26 +1,26 @@
 from fastapi import FastAPI, Request
 from fastapi.responses import JSONResponse
 from typing import Dict, Any, List
-import math
 
 app = FastAPI()
 
-STUDENT_EMAIL = "geilyn@taltech.ee" 
+STUDENT_EMAIL = "geilyn@taltech.ee"
 ALGO_NAME = "BullwhipBreaker"
-VERSION = "v1.0.0"
+VERSION = "v1.0.1"  # tuned to reduce inventory cost
 
 ROLES = ["retailer", "wholesaler", "distributor", "factory"]
 
-# Rollipõhised parameetrid (tuned stabiilsuse suunas)
+# Rollipõhised parameetrid (tuned: madalam sihttase + backlog'i osaline katmine)
 PARAMS = {
-    "retailer":    {"cover_weeks": 2.0, "safety": 10, "beta": 0.30, "alpha": 0.40, "cap": 200},
-    "wholesaler":  {"cover_weeks": 3.0, "safety": 12, "beta": 0.30, "alpha": 0.35, "cap": 220},
-    "distributor": {"cover_weeks": 3.0, "safety": 14, "beta": 0.30, "alpha": 0.35, "cap": 240},
-    "factory":     {"cover_weeks": 4.0, "safety": 16, "beta": 0.25, "alpha": 0.30, "cap": 260},
+    "retailer":    {"cover_weeks": 1.2, "safety": 6,  "beta": 0.30, "alpha": 0.45, "cap": 140, "target_mult": 0.70, "backlog_cover": 0.55},
+    "wholesaler":  {"cover_weeks": 1.6, "safety": 7,  "beta": 0.30, "alpha": 0.40, "cap": 160, "target_mult": 0.70, "backlog_cover": 0.55},
+    "distributor": {"cover_weeks": 1.8, "safety": 8,  "beta": 0.30, "alpha": 0.40, "cap": 175, "target_mult": 0.68, "backlog_cover": 0.55},
+    "factory":     {"cover_weeks": 2.0, "safety": 9,  "beta": 0.25, "alpha": 0.35, "cap": 190, "target_mult": 0.66, "backlog_cover": 0.55},
 }
 
+
 def ewma(values: List[int], beta: float) -> float:
-    """Deterministlik EWMA. Kui ajalugu puudub, kasuta viimast väärtust või 0."""
+    """Deterministlik EWMA. Kui ajalugu puudub, kasuta 0."""
     if not values:
         return 0.0
     s = float(values[0])
@@ -28,12 +28,6 @@ def ewma(values: List[int], beta: float) -> float:
         s = beta * float(v) + (1.0 - beta) * s
     return s
 
-def clamp_int(x: float, lo: int = 0, hi: int = 10**9) -> int:
-    if x < lo:
-        return lo
-    if x > hi:
-        return hi
-    return int(x)
 
 def last_order_for_role(weeks: List[Dict[str, Any]], role: str) -> int:
     """Võta eelmine (sama bot’i poolt) tellimus, kui olemas; muidu 0."""
@@ -44,8 +38,9 @@ def last_order_for_role(weeks: List[Dict[str, Any]], role: str) -> int:
     val = orders.get(role)
     return int(val) if isinstance(val, int) and val >= 0 else 0
 
+
 def incoming_history_blackbox(weeks: List[Dict[str, Any]], role: str) -> List[int]:
-    hist = []
+    hist: List[int] = []
     for w in weeks:
         r = (w.get("roles") or {}).get(role) or {}
         v = r.get("incoming_orders")
@@ -53,26 +48,44 @@ def incoming_history_blackbox(weeks: List[Dict[str, Any]], role: str) -> List[in
             hist.append(v)
     return hist
 
-def compute_order(role_state: Dict[str, Any], hist_incoming: List[int], last_order: int, p: Dict[str, Any]) -> int:
+
+def compute_order(
+    role_state: Dict[str, Any],
+    hist_incoming: List[int],
+    last_order: int,
+    p: Dict[str, Any],
+) -> int:
     inv = int(role_state.get("inventory", 0) or 0)
     back = int(role_state.get("backlog", 0) or 0)
     inc = int(role_state.get("incoming_orders", 0) or 0)
     arr = int(role_state.get("arriving_shipments", 0) or 0)
 
+    # Netopositsioon ja ühe nädala ettevaade
     net_stock = inv - back
     projected_next = net_stock + arr - inc
 
+    # Prognoos (EWMA)
     forecast = ewma(hist_incoming, p["beta"])
-    target = p["safety"] + p["cover_weeks"] * forecast
 
-    raw_order = max(0.0, target - projected_next)
+    # Order-up-to sihttase (agressiivsem: madalam target_mult)
+    base_target = p["safety"] + p["cover_weeks"] * forecast
+    target = p.get("target_mult", 1.0) * base_target
 
+    # Ära kata backlog'i 100% (selles skooris vähendab inventari ja kulu)
+    effective_projected = projected_next - p.get("backlog_cover", 1.0) * back
+
+    # Kui target > effective_projected, telli vahe
+    raw_order = max(0.0, target - effective_projected)
+
+    # Silu tellimust, et vähendada kõikumist
     smoothed = p["alpha"] * raw_order + (1.0 - p["alpha"]) * float(last_order)
     order = int(round(smoothed))
 
+    # Ohutud piirangud
     order = max(0, order)
     order = min(order, int(p["cap"]))
     return order
+
 
 @app.post("/api/decision")
 async def decision(req: Request):
@@ -89,16 +102,15 @@ async def decision(req: Request):
                 "version": VERSION,
                 "supports": {"blackbox": True, "glassbox": True},
                 "message": "BeerBot ready",
-                # optional fields:
                 "uses_llm": False,
-                "student_comment": "EWMA + order-up-to + smoothing (deterministic)"
+                "student_comment": "EWMA + order-up-to (lower target) + partial backlog cover + smoothing (deterministic)",
             },
         )
 
     mode = body.get("mode", "blackbox")
     weeks = body.get("weeks") or []
     if not weeks:
-        # kui midagi on väga valesti, tagasta turvaline default
+        # Kui midagi on väga valesti, tagasta turvaline default
         return JSONResponse(status_code=200, content={"orders": {r: 10 for r in ROLES}})
 
     last_week = weeks[-1]
@@ -109,7 +121,6 @@ async def decision(req: Request):
     if mode == "glassbox":
         # Koordineeritud prognoos: võta lõpptarbija nõudlus retailerilt
         retailer_hist = incoming_history_blackbox(weeks, "retailer")
-        # Kasuta sama histi kõigile (lihtne, stabiilne baasvariant)
         for role in ROLES:
             p = PARAMS[role]
             last_ord = last_order_for_role(weeks, role)
