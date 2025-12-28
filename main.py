@@ -10,12 +10,36 @@ VERSION = "v1.0.1"  # tuned to reduce inventory cost
 
 ROLES = ["retailer", "wholesaler", "distributor", "factory"]
 
-# Rollipõhised parameetrid (tuned: madalam sihttase + backlog'i osaline katmine)
+# Rollipõhised parameetrid 
 PARAMS = {
-    "retailer":    {"cover_weeks": 1.2, "safety": 6,  "beta": 0.30, "alpha": 0.45, "cap": 140, "target_mult": 0.70, "backlog_cover": 0.55},
-    "wholesaler":  {"cover_weeks": 1.6, "safety": 7,  "beta": 0.30, "alpha": 0.40, "cap": 160, "target_mult": 0.70, "backlog_cover": 0.55},
-    "distributor": {"cover_weeks": 1.8, "safety": 8,  "beta": 0.30, "alpha": 0.40, "cap": 175, "target_mult": 0.68, "backlog_cover": 0.55},
-    "factory":     {"cover_weeks": 2.0, "safety": 9,  "beta": 0.25, "alpha": 0.35, "cap": 190, "target_mult": 0.66, "backlog_cover": 0.55},
+    "retailer": {
+        "cover_weeks": 2.8,   # ↑ agressiivsem
+        "safety": 18,         # ↑ backlogi vältimine
+        "beta": 0.45,         # ↑ kiirem nõudluse õppimine
+        "alpha": 0.65,        # ↑ vähem silumist
+        "cap": 260
+    },
+    "wholesaler": {
+        "cover_weeks": 3.2,
+        "safety": 20,
+        "beta": 0.45,
+        "alpha": 0.60,
+        "cap": 280
+    },
+    "distributor": {
+        "cover_weeks": 3.5,
+        "safety": 22,
+        "beta": 0.45,
+        "alpha": 0.60,
+        "cap": 300
+    },
+    "factory": {
+        "cover_weeks": 4.0,
+        "safety": 26,
+        "beta": 0.40,
+        "alpha": 0.55,
+        "cap": 340
+    }
 }
 
 
